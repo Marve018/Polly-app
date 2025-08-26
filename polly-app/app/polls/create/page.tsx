@@ -1,7 +1,10 @@
+'use client'
+
+import withAuth from '@/app/components/withAuth'
 import React from 'react';
 import Link from 'next/link';
 
-export default function CreatePollPage() {
+function CreatePollPage() {
   return (
     <div className="container mx-auto py-10 px-4">
       <Link 
@@ -99,3 +102,5 @@ export default function CreatePollPage() {
     </div>
   );
 }
+
+export default withAuth(CreatePollPage)

@@ -1,3 +1,6 @@
+'use client'
+
+import withAuth from '@/app/components/withAuth'
 import React from 'react';
 import Link from 'next/link';
 
@@ -16,7 +19,7 @@ const mockPoll = {
   ],
 };
 
-export default function PollPage({ params }: { params: { id: string } }) {
+function PollPage({ params }: { params: { id: string } }) {
   const totalVotes = mockPoll.options.reduce((sum, option) => sum + option.votes, 0);
 
   return (
@@ -83,3 +86,5 @@ export default function PollPage({ params }: { params: { id: string } }) {
     </div>
   );
 }
+
+export default withAuth(PollPage)

@@ -1,5 +1,7 @@
-import React from 'react';
-import Link from 'next/link';
+'use client'
+
+import { useAuth } from '@/app/contexts/AuthContext'
+import Link from 'next/link'
 
 // Mock data for polls
 const mockPolls = [
@@ -9,16 +11,43 @@ const mockPolls = [
 ];
 
 export default function PollsPage() {
+  const { user, supabase } = useAuth()
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    window.location.href = '/auth/login'
+  }
+
   return (
     <div className="container mx-auto py-10 px-4">
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Polls</h1>
-        <Link 
-          href="/polls/create" 
-          className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition"
-        >
-          Create Poll
-        </Link>
+        <div>
+          <h1 className="text-3xl font-bold">Polls</h1>
+          {user && <p className="text-gray-500">Welcome, {user.email}</p>}
+        </div>
+        <div>
+          {user ? (
+            <button
+              onClick={handleLogout}
+              className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 transition mr-4"
+            >
+              Logout
+            </button>
+          ) : (
+            <Link 
+              href="/auth/login"
+              className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition mr-4"
+            >
+              Login
+            </Link>
+          )}
+          <Link 
+            href="/polls/create" 
+            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition"
+          >
+            Create Poll
+          </Link>
+        </div>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">

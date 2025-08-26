@@ -1,22 +1,37 @@
-import React from 'react';
+'use client'
+
+import { useAuth } from '@/app/contexts/AuthContext'
+import { useState } from 'react'
 
 export default function RegisterPage() {
+  const { supabase } = useAuth()
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (password !== confirmPassword) {
+      alert("Passwords do not match!")
+      return
+    }
+    try {
+      const { error } = await supabase.auth.signUp({ email, password })
+      if (error) throw error
+      alert('Registration successful! Please check your email to confirm your account.')
+      // Redirect to login page
+      window.location.href = '/auth/login'
+    } catch (error: any) {
+      alert(error.message)
+    }
+  }
+
   return (
     <div className="container mx-auto py-10">
       <div className="max-w-md mx-auto bg-white rounded-lg shadow-md p-6">
         <h1 className="text-2xl font-bold mb-6 text-center">Register</h1>
         
-        <form className="space-y-4">
-          <div className="space-y-2">
-            <label htmlFor="name" className="text-sm font-medium">Full Name</label>
-            <input
-              id="name"
-              type="text"
-              className="w-full px-3 py-2 border rounded-md"
-              placeholder="Enter your name"
-            />
-          </div>
-          
+        <form className="space-y-4" onSubmit={handleRegister}>
           <div className="space-y-2">
             <label htmlFor="email" className="text-sm font-medium">Email</label>
             <input
@@ -24,6 +39,8 @@ export default function RegisterPage() {
               type="email"
               className="w-full px-3 py-2 border rounded-md"
               placeholder="Enter your email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
             />
           </div>
           
@@ -34,9 +51,11 @@ export default function RegisterPage() {
               type="password"
               className="w-full px-3 py-2 border rounded-md"
               placeholder="Create a password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
             />
           </div>
-          
+
           <div className="space-y-2">
             <label htmlFor="confirmPassword" className="text-sm font-medium">Confirm Password</label>
             <input
@@ -44,6 +63,8 @@ export default function RegisterPage() {
               type="password"
               className="w-full px-3 py-2 border rounded-md"
               placeholder="Confirm your password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
             />
           </div>
           
@@ -65,5 +86,5 @@ export default function RegisterPage() {
         </div>
       </div>
     </div>
-  );
+  )
 }
