@@ -1,10 +1,97 @@
 'use client'
 
 import withAuth from '@/app/components/withAuth'
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useForm } from 'react-hook-form';
+import * as z from 'zod';
+import { Trash2, Plus } from 'lucide-react';
+import { toast } from 'sonner';
+
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+// Import the action through a client-side wrapper
+import { createPoll as createPollAction } from '@/lib/actions/poll-actions';
+
+// Define form schema with Zod
+const formSchema = z.object({
+  title: z.string().min(3, { message: 'Title must be at least 3 characters' }),
+  description: z.string().optional(),
+  options: z.array(
+    z.object({
+      text: z.string().min(1, { message: 'Option text is required' })
+    })
+  ).min(2, { message: 'At least 2 options are required' }),
+  allowMultipleVotes: z.boolean().default(false),
+  hideResults: z.boolean().default(false),
+});
+
+type FormValues = z.infer<typeof formSchema>;
 
 function CreatePollPage() {
+  const router = useRouter();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Initialize form with default values
+  const form = useForm<FormValues>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      title: '',
+      description: '',
+      options: [{ text: '' }, { text: '' }],
+      allowMultipleVotes: false,
+      hideResults: false,
+    },
+  });
+
+  // Add a new option field
+  const addOption = () => {
+    const currentOptions = form.getValues('options');
+    form.setValue('options', [...currentOptions, { text: '' }]);
+  };
+
+  // Remove an option field
+  const removeOption = (index: number) => {
+    const currentOptions = form.getValues('options');
+    if (currentOptions.length <= 2) return; // Maintain minimum 2 options
+    form.setValue('options', currentOptions.filter((_, i) => i !== index));
+  };
+
+  // Handle form submission
+  const onSubmit = async (data: FormValues) => {
+    try {
+      setIsSubmitting(true);
+      setError(null);
+      
+      // Show loading toast
+      toast.loading('Creating your poll...');
+      
+      const result = await createPollAction(data);
+      
+      if (result?.error) {
+        toast.dismiss();
+        toast.error(result.error);
+        setError(result.error);
+        setIsSubmitting(false);
+      } else {
+        // Success toast will show briefly before redirect
+        toast.success('Poll created successfully!');
+      }
+      // No need to handle success case as the server action will redirect
+    } catch (err) {
+      toast.dismiss();
+      toast.error('An unexpected error occurred');
+      setError('An unexpected error occurred');
+      setIsSubmitting(false);
+      console.error(err);
+    }
+  };
+
   return (
     <div className="container mx-auto py-10 px-4">
       <Link 
@@ -14,91 +101,145 @@ function CreatePollPage() {
         ← Back to Polls
       </Link>
 
-      <div className="max-w-2xl mx-auto bg-white rounded-lg shadow-md p-6">
-        <h1 className="text-2xl font-bold mb-6">Create New Poll</h1>
-        
-        <form className="space-y-6">
-          <div className="space-y-2">
-            <label htmlFor="title" className="text-sm font-medium">Poll Title</label>
-            <input
-              id="title"
-              type="text"
-              className="w-full px-3 py-2 border rounded-md"
-              placeholder="Enter poll title"
-            />
-          </div>
-          
-          <div className="space-y-2">
-            <label htmlFor="description" className="text-sm font-medium">Description (Optional)</label>
-            <textarea
-              id="description"
-              rows={3}
-              className="w-full px-3 py-2 border rounded-md"
-              placeholder="Enter poll description"
-            />
-          </div>
-          
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Poll Options</label>
-            <div className="space-y-3">
-              {[1, 2].map((index) => (
-                <div key={index} className="flex gap-2">
-                  <input
-                    type="text"
-                    className="flex-1 px-3 py-2 border rounded-md"
-                    placeholder={`Option ${index}`}
-                  />
-                  {index > 2 && (
-                    <button
-                      type="button"
-                      className="px-3 py-2 border rounded-md text-red-500 hover:bg-red-50"
-                    >
-                      Remove
-                    </button>
-                  )}
-                </div>
-              ))}
+      <Card className="max-w-2xl mx-auto">
+        <CardHeader>
+          <CardTitle>Create New Poll</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
+              {error}
             </div>
-            
-            <button
-              type="button"
-              className="mt-2 text-blue-600 hover:underline text-sm"
-            >
-              + Add Another Option
-            </button>
-          </div>
+          )}
           
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Poll Settings</label>
-            <div className="space-y-2">
-              <div className="flex items-center">
-                <input
-                  id="multiple-votes"
-                  type="checkbox"
-                  className="mr-2"
-                />
-                <label htmlFor="multiple-votes">Allow multiple votes per user</label>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              <FormField
+                control={form.control}
+                name="title"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Poll Title</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Enter poll title" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Description (Optional)</FormLabel>
+                    <FormControl>
+                      <textarea 
+                        className="w-full px-3 py-2 border rounded-md" 
+                        rows={3}
+                        placeholder="Enter poll description"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <div className="space-y-4">
+                <FormLabel>Poll Options</FormLabel>
+                {form.watch('options').map((_, index) => (
+                  <FormField
+                    key={index}
+                    control={form.control}
+                    name={`options.${index}.text`}
+                    render={({ field }) => (
+                      <FormItem>
+                        <div className="flex gap-2">
+                          <FormControl>
+                            <Input placeholder={`Option ${index + 1}`} {...field} />
+                          </FormControl>
+                          {form.watch('options').length > 2 && (
+                            <Button 
+                              type="button" 
+                              variant="outline" 
+                              size="icon"
+                              onClick={() => removeOption(index)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                ))}
+                
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-2"
+                  onClick={addOption}
+                >
+                  <Plus className="h-4 w-4 mr-2" /> Add Another Option
+                </Button>
               </div>
               
-              <div className="flex items-center">
-                <input
-                  id="hide-results"
-                  type="checkbox"
-                  className="mr-2"
-                />
-                <label htmlFor="hide-results">Hide results until voting ends</label>
+              <div className="space-y-4">
+                <FormLabel>Poll Settings</FormLabel>
+                <div className="space-y-2">
+                  <FormField
+                    control={form.control}
+                    name="allowMultipleVotes"
+                    render={({ field }) => (
+                      <FormItem className="flex items-center space-x-2">
+                        <FormControl>
+                          <input
+                            type="checkbox"
+                            checked={field.value}
+                            onChange={field.onChange}
+                            className="mr-2"
+                          />
+                        </FormControl>
+                        <FormLabel className="!mt-0">Allow multiple votes per user</FormLabel>
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={form.control}
+                    name="hideResults"
+                    render={({ field }) => (
+                      <FormItem className="flex items-center space-x-2">
+                        <FormControl>
+                          <input
+                            type="checkbox"
+                            checked={field.value}
+                            onChange={field.onChange}
+                            className="mr-2"
+                          />
+                        </FormControl>
+                        <FormLabel className="!mt-0">Hide results until voting ends</FormLabel>
+                      </FormItem>
+                    )}
+                  />
+                </div>
               </div>
-            </div>
-          </div>
-          
-          <button
-            type="submit"
-            className="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 transition"
-          >
-            Create Poll
-          </button>
-        </form>
-      </div>
+              
+              <Button 
+                type="submit" 
+                className="w-full" 
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? 'Creating Poll...' : 'Create Poll'}
+              </Button>
+            </form>
+          </Form>
+        </CardContent>
+      </Card>
     </div>
   );
 }
