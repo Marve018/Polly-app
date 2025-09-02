@@ -77,18 +77,19 @@ function CreatePollPage() {
         toast.dismiss();
         toast.error(result.error);
         setError(result.error);
-        setIsSubmitting(false);
-      } else {
-        // Success toast will show briefly before redirect
+      } else if (result?.success) {
+        toast.dismiss();
         toast.success('Poll created successfully!');
+        // Navigate to polls list
+        router.push('/polls');
       }
-      // No need to handle success case as the server action will redirect
     } catch (err) {
       toast.dismiss();
       toast.error('An unexpected error occurred');
       setError('An unexpected error occurred');
-      setIsSubmitting(false);
       console.error(err);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
