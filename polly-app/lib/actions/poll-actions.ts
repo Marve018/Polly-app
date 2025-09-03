@@ -1,39 +1,50 @@
-'use server'
+"use server";
 
-import { createServerActionClient, createServerComponentClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
-import { revalidatePath } from 'next/cache'
+import { revalidatePath } from "next/cache";
+import { createServerClient } from "../supabase-server";
 
 export type Poll = {
-  id: string
-  title: string
-  description: string | null
-  user_id: string
-  created_at: string
-  total_votes: number
-}
+  id: string;
+  title: string;
+  description: string | null;
+  user_id: string;
+  created_at: string;
+  total_votes: number;
+};
+
+export type PollOption = {
+  id: string;
+  text: string;
+  poll_id: string;
+};
+
+export type PollWithOptions = Poll & {
+  poll_options: (Omit<PollOption, "poll_id"> & { votes: number })[];
+};
 
 export async function createPoll(formData: FormData) {
-  const cookieStore = cookies()
-  const supabase = createServerActionClient({ cookies: () => cookieStore })
+  const supabase = await createServerClient();
 
   try {
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
     if (authError || !user) {
-      return { error: 'You must be logged in to create a poll' }
+      return { error: "You must be logged in to create a poll" };
     }
 
-    const title = formData.get('title') as string
-    const description = formData.get('description') as string
-    const options = formData.getAll('options[]') as string[]
+    const title = formData.get("title") as string;
+    const description = formData.get("description") as string;
+    const options = formData.getAll("options[]") as string[];
 
     if (!title || options.length < 2) {
-      return { error: 'Title and at least 2 options are required' }
+      return { error: "Title and at least 2 options are required" };
     }
 
     // Insert the poll
     const { data: poll, error: pollError } = await supabase
-      .from('polls')
+      .from("polls")
       .insert([
         {
           title,
@@ -42,119 +53,235 @@ export async function createPoll(formData: FormData) {
         },
       ])
       .select()
-      .single()
+      .single();
 
     if (pollError) {
-      console.error('Error creating poll:', pollError)
-      return { error: 'Failed to create poll' }
+      console.error("Error creating poll:", pollError);
+      return { error: "Failed to create poll" };
     }
 
     // Insert the options
     const optionsToInsert = options
-      .filter(option => option.trim() !== '')
-      .map(option => ({
+      .filter((option) => option.trim() !== "")
+      .map((option) => ({
         poll_id: poll.id,
         text: option,
-      }))
+      }));
 
     const { error: optionsError } = await supabase
-      .from('poll_options')
-      .insert(optionsToInsert)
+      .from("poll_options")
+      .insert(optionsToInsert);
 
     if (optionsError) {
-      console.error('Error creating poll options:', optionsError)
-      return { error: 'Failed to create poll options' }
+      console.error("Error creating poll options:", optionsError);
+      return { error: "Failed to create poll options" };
     }
 
-    revalidatePath('/polls')
-    return { success: true }
+    revalidatePath("/polls");
+    return { success: true };
   } catch (error) {
-    console.error('Error in createPoll:', error)
-    return { error: 'An unexpected error occurred' }
+    console.error("Error in createPoll:", error);
+    return { error: "An unexpected error occurred" };
   }
 }
 
 export async function getPolls() {
-  const cookieStore = cookies()
-  const supabase = createServerComponentClient({ cookies: () => cookieStore })
+  const supabase = await createServerClient();
 
   try {
     // Get all polls
     const { data: polls, error } = await supabase
-      .from('polls')
-      .select('*')
-      .order('created_at', { ascending: false })
+      .from("polls")
+      .select("*")
+      .order("created_at", { ascending: false });
 
     if (error) {
-      console.error('Error fetching polls:', error)
-      return { error: 'Failed to fetch polls' }
+      console.error("Error fetching polls:", error);
+      return { error: "Failed to fetch polls" };
     }
 
     // Get vote counts for each poll
     const pollsWithTotalVotes = await Promise.all(
       polls.map(async (poll) => {
-        const { data: vote_count, error: rpcError } = await supabase.rpc('get_poll_vote_count', {
-          poll_id: poll.id,
-        })
+        const { data: vote_count, error: rpcError } = await supabase.rpc(
+          "get_poll_vote_count",
+          {
+            poll_id: poll.id,
+          }
+        );
 
         if (rpcError) {
-          console.error(`Error fetching vote count for poll ${poll.id}:`, rpcError)
+          console.error(
+            `Error fetching vote count for poll ${poll.id}:`,
+            rpcError
+          );
         }
 
         return {
           ...poll,
           total_votes: vote_count || 0,
-        }
+        };
       })
-    )
+    );
 
-    return { polls: pollsWithTotalVotes }
+    return { polls: pollsWithTotalVotes };
   } catch (error) {
-    console.error('Error in getPolls:', error)
-    return { error: 'An unexpected error occurred' }
+    console.error("Error in getPolls:", error);
+    return { error: "An unexpected error occurred" };
+  }
+}
+
+export async function getPoll(
+  id: string
+): Promise<{ poll?: PollWithOptions; error?: string }> {
+  const supabase = await createServerClient();
+
+  try {
+    const { data: poll, error } = await supabase
+      .from("polls")
+      .select(
+        `
+        *,
+        poll_options (
+          id,
+          text
+        )
+      `
+      )
+      .eq("id", id)
+      .single();
+
+    if (error || !poll) {
+      console.error("Error fetching poll:", error);
+      return { error: "Poll not found" };
+    }
+
+    // Get vote counts for each option
+    const optionsWithVotes = await Promise.all(
+      (poll.poll_options as PollOption[]).map(async (option) => {
+        const { count, error: countError } = await supabase
+          .from("votes")
+          .select("*", { count: "exact", head: true })
+          .eq("poll_option_id", option.id);
+
+        if (countError) {
+          console.error(
+            `Error fetching vote count for option ${option.id}:`,
+            countError
+          );
+        }
+
+        return {
+          ...option,
+          votes: count || 0,
+        };
+      })
+    );
+
+    const pollWithOptions: PollWithOptions = {
+      ...(poll as Poll),
+      poll_options: optionsWithVotes,
+    };
+
+    return { poll: pollWithOptions };
+  } catch (error) {
+    console.error("Error in getPoll:", error);
+    return { error: "An unexpected error occurred" };
   }
 }
 
 export async function deletePoll(pollId: string) {
-  const cookieStore = cookies()
-  const supabase = createServerActionClient({ cookies: () => cookieStore })
+  const supabase = await createServerClient();
 
   try {
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
     if (authError || !user) {
-      return { error: 'You must be logged in to delete a poll' }
+      return { error: "You must be logged in to delete a poll" };
     }
 
     // Check if the poll belongs to the user
     const { data: poll, error: pollError } = await supabase
-      .from('polls')
-      .select('user_id')
-      .eq('id', pollId)
-      .single()
+      .from("polls")
+      .select("user_id")
+      .eq("id", pollId)
+      .single();
 
     if (pollError || !poll) {
-      return { error: 'Poll not found' }
+      return { error: "Poll not found" };
     }
 
     if (poll.user_id !== user.id) {
-      return { error: 'You can only delete your own polls' }
+      return { error: "You can only delete your own polls" };
     }
 
     // Delete the poll (options will be cascade deleted due to foreign key constraint)
     const { error: deleteError } = await supabase
-      .from('polls')
+      .from("polls")
       .delete()
-      .eq('id', pollId)
+      .eq("id", pollId);
 
     if (deleteError) {
-      console.error('Error deleting poll:', deleteError)
-      return { error: 'Failed to delete poll' }
+      console.error("Error deleting poll:", deleteError);
+      return { error: "Failed to delete poll" };
     }
 
-    revalidatePath('/polls')
-    return { success: true }
+    revalidatePath("/polls");
+    return { success: true };
   } catch (error) {
-    console.error('Error in deletePoll:', error)
-    return { error: 'An unexpected error occurred' }
+    console.error("Error in deletePoll:", error);
+    return { error: "An unexpected error occurred" };
+  }
+}
+
+export async function submitVote(pollId: string, pollOptionId: string) {
+  const supabase = await createServerClient();
+
+  try {
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return { error: "You must be logged in to vote" };
+    }
+
+    // Check if the user has already voted on this poll
+    const { data: existingVote, error: voteCheckError } = await supabase
+      .from("votes")
+      .select("id")
+      .eq("poll_id", pollId)
+      .eq("user_id", user.id)
+      .single();
+
+    if (voteCheckError && voteCheckError.code !== "PGRST116") {
+      // PGRST116: 'No rows found'
+      console.error("Error checking for existing vote:", voteCheckError);
+      return { error: "Failed to check for existing vote" };
+    }
+
+    if (existingVote) {
+      return { error: "You have already voted on this poll" };
+    }
+
+    // Insert the new vote
+    const { error: insertError } = await supabase.from("votes").insert({
+      poll_id: pollId,
+      poll_option_id: pollOptionId,
+      user_id: user.id,
+    });
+
+    if (insertError) {
+      console.error("Error submitting vote:", insertError);
+      return { error: "Failed to submit vote" };
+    }
+
+    revalidatePath(`/polls/${pollId}`);
+    return { success: true };
+  } catch (error) {
+    console.error("Error in submitVote:", error);
+    return { error: "An unexpected error occurred" };
   }
 }

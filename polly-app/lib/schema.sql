@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS poll_options (
 -- Votes table
 CREATE TABLE IF NOT EXISTS votes (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  poll_id UUID NOT NULL REFERENCES polls(id) ON DELETE CASCADE,
   poll_option_id UUID NOT NULL REFERENCES poll_options(id) ON DELETE CASCADE,
   user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   voter_ip TEXT,
