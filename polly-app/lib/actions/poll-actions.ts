@@ -106,7 +106,7 @@ export async function getPolls() {
         const { data: vote_count, error: rpcError } = await supabase.rpc(
           "get_poll_vote_count",
           {
-            poll_id: poll.id,
+            p_poll_id: poll.id,
           }
         );
 
@@ -159,21 +159,23 @@ export async function getPoll(
     // Get vote counts for each option
     const optionsWithVotes = await Promise.all(
       (poll.poll_options as PollOption[]).map(async (option) => {
-        const { count, error: countError } = await supabase
-          .from("votes")
-          .select("*", { count: "exact", head: true })
-          .eq("poll_option_id", option.id);
+        const { data: vote_count, error: rpcError } = await supabase.rpc(
+          "get_option_vote_count",
+          {
+            option_id: option.id,
+          }
+        );
 
-        if (countError) {
+        if (rpcError) {
           console.error(
             `Error fetching vote count for option ${option.id}:`,
-            countError
+            rpcError
           );
         }
 
         return {
           ...option,
-          votes: count || 0,
+          votes: vote_count || 0,
         };
       })
     );

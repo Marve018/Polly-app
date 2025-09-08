@@ -141,17 +141,21 @@ CREATE POLICY "Poll owners can delete votes"
   );
 
 -- Helper function to get total votes for a poll
-CREATE OR REPLACE FUNCTION get_poll_vote_count(poll_id UUID)
+CREATE OR REPLACE FUNCTION get_poll_vote_count(p_poll_id UUID)
 RETURNS INTEGER AS $$
-BEGIN
-  RETURN (
-    SELECT COUNT(*)
-    FROM votes
-    JOIN poll_options ON votes.poll_option_id = poll_options.id
-    WHERE poll_options.poll_id = $1
-  );
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+  SELECT COUNT(*)::INTEGER
+  FROM votes
+  JOIN poll_options ON votes.poll_option_id = poll_options.id
+  WHERE poll_options.poll_id = p_poll_id;
+$$ LANGUAGE sql SECURITY DEFINER;
+
+-- Helper function to get total votes for an option
+CREATE OR REPLACE FUNCTION get_option_vote_count(p_option_id UUID)
+RETURNS INTEGER AS $$
+  SELECT COUNT(*)::INTEGER
+  FROM votes
+  WHERE votes.poll_option_id = p_option_id;
+$$ LANGUAGE sql SECURITY DEFINER;
 
 -- Helper function to check if a user has already voted on a poll
 CREATE OR REPLACE FUNCTION has_user_voted(poll_id UUID, user_id UUID)
