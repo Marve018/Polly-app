@@ -26,8 +26,8 @@ const formSchema = z.object({
       text: z.string().min(1, { message: 'Option text is required' })
     })
   ).min(2, { message: 'At least 2 options are required' }),
-  allowMultipleVotes: z.boolean().default(false),
-  hideResults: z.boolean().default(false),
+  allowMultipleVotes: z.boolean(),
+  hideResults: z.boolean(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -71,7 +71,16 @@ function CreatePollPage() {
       // Show loading toast
       toast.loading('Creating your poll...');
       
-      const result = await createPollAction(data);
+      const formData = new FormData();
+      formData.append('title', data.title);
+      if (data.description) {
+        formData.append('description', data.description);
+      }
+      data.options.forEach((opt) => {
+        formData.append('options[]', opt.text);
+      });
+
+      const result = await createPollAction(formData);
       
       if (result?.error) {
         toast.dismiss();
@@ -202,6 +211,7 @@ function CreatePollPage() {
                             type="checkbox"
                             checked={field.value}
                             onChange={field.onChange}
+                            title="Allow multiple votes per user"
                             className="mr-2"
                           />
                         </FormControl>
@@ -220,6 +230,7 @@ function CreatePollPage() {
                             type="checkbox"
                             checked={field.value}
                             onChange={field.onChange}
+                            title="Hide results until voting ends"
                             className="mr-2"
                           />
                         </FormControl>

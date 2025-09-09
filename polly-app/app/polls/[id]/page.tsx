@@ -8,7 +8,6 @@ export default function PollPage({ params }: { params: { id: string } }) {
 
   return (
     <Suspense fallback={<div className="container mx-auto py-10 px-4">Loading poll...</div>}>
-      {/* @ts-expect-error Async Server Component */}
       <PollPageContent pollDetails={pollDetails} />
     </Suspense>
   );
