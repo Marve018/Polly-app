@@ -2,9 +2,10 @@ import { getPoll, PollWithOptions } from "@/lib/actions/poll-actions";
 import PollView from "./poll-view";
 import { Suspense } from "react";
 
-export default function PollPage({ params }: { params: { id: string } }) {
+export default async function PollPage({ params }: { params: Promise<{ id: string }> }) {
   // The getPoll function is async and will be awaited inside PollPageContent
-  const pollDetails = getPoll(params.id);
+  const { id } = await params;
+  const pollDetails = getPoll(id);
 
   return (
     <Suspense fallback={<div className="container mx-auto py-10 px-4">Loading poll...</div>}>

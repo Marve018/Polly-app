@@ -13,10 +13,22 @@ export async function createServerClient() {
           return cookieStore.get(name)?.value
         },
         set(name, value, options) {
-          cookieStore.set({ name, value, ...options })
+          // Only set cookies in Server Actions or Route Handlers
+          // For regular page components, we'll just read cookies
+          try {
+            cookieStore.set({ name, value, ...options })
+          } catch (error) {
+            // Silently ignore cookie setting errors in non-Server Action contexts
+            console.warn('Cannot set cookie in this context:', error)
+          }
         },
         remove(name, options) {
-          cookieStore.set({ name, value: '', ...options })
+          try {
+            cookieStore.set({ name, value: '', ...options })
+          } catch (error) {
+            // Silently ignore cookie removal errors in non-Server Action contexts
+            console.warn('Cannot remove cookie in this context:', error)
+          }
         },
       },
     }

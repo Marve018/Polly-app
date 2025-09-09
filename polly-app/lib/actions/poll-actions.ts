@@ -100,20 +100,18 @@ export async function getPolls() {
       return { error: "Failed to fetch polls" };
     }
 
-    // Get vote counts for each poll
+    // Get vote counts for each poll using direct query
     const pollsWithTotalVotes = await Promise.all(
       polls.map(async (poll) => {
-        const { data: vote_count, error: rpcError } = await supabase.rpc(
-          "get_poll_vote_count",
-          {
-            p_poll_id: poll.id,
-          }
-        );
+        const { count: vote_count, error: voteError } = await supabase
+          .from("votes")
+          .select("*", { count: "exact", head: true })
+          .eq("poll_id", poll.id);
 
-        if (rpcError) {
+        if (voteError) {
           console.error(
             `Error fetching vote count for poll ${poll.id}:`,
-            rpcError
+            voteError
           );
         }
 
@@ -156,20 +154,18 @@ export async function getPoll(
       return { error: "Poll not found" };
     }
 
-    // Get vote counts for each option
+    // Get vote counts for each option using direct query
     const optionsWithVotes = await Promise.all(
       (poll.poll_options as PollOption[]).map(async (option) => {
-        const { data: vote_count, error: rpcError } = await supabase.rpc(
-          "get_option_vote_count",
-          {
-            option_id: option.id,
-          }
-        );
+        const { count: vote_count, error: voteError } = await supabase
+          .from("votes")
+          .select("*", { count: "exact", head: true })
+          .eq("poll_option_id", option.id);
 
-        if (rpcError) {
+        if (voteError) {
           console.error(
             `Error fetching vote count for option ${option.id}:`,
-            rpcError
+            voteError
           );
         }
 
